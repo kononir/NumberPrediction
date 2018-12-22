@@ -8,6 +8,11 @@
 
 using namespace std;
 
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Главная функция; в ней происходит ввод входных параметров сети и вызываются остальные функции
+*/
 int main()
 {
 	int sequenceSize;
@@ -18,7 +23,7 @@ int main()
 		int sequenceCode;
 
 		cout << "Choose sequence: " << endl;
-		cout << "1 - 1, 2, 3, ...\n2 - 1, 3, 5, 7, ... (periodic)\n3 - Fibonacci series\n4 - 3^(x+2)\n5 - x!\n6 - x^2\n";
+		cout << "1 - x+1\n2 - 1, 3, 5, 7, ... (periodic)\n3 - Fibonacci series\n4 - 2^(x+2)\n5 - x!\n6 - x^2\n";
 		cin >> sequenceCode;
 
 		switch (sequenceCode) {
@@ -45,7 +50,7 @@ int main()
 		}
 		case 4: {
 			sequenceSize = 8;
-			double temp[8] = { 9, 27, 81, 243, 729, 2187, 6561, 19683 };
+			double temp[8] = { 4, 8, 16, 32, 64, 128, 256, 512 };
 			sequence = temp;
 
 			break;
@@ -71,21 +76,37 @@ int main()
 		cout << "Enter max error (0 < e <= 0.1): ";
 		cin >> neuralNetwork.maximumAllowableError;
 
-		cout << "Enter number of neurons (L >= 1): ";
+		if (neuralNetwork.maximumAllowableError <= 0) {
+			throw "Error - Invalid parameter: maximum allowable error";
+		}
+
+		cout << "Enter number of neurons (m >= 1): ";
 		cin >> neuralNetwork.neuronsNumber;
+
+		if (neuralNetwork.neuronsNumber <= 0) {
+			throw "Error - Invalid parameter: neurons number";
+		}
 
 		cout << "Enter window size (p >= 1): ";
 		cin >> neuralNetwork.windowSize;
 
+		if (neuralNetwork.windowSize <= 0) {
+			throw "Error - Invalid parameter: window size";
+		}
+
 		cout << "Input coefficient of training (0 < a <= 0.1, a <= e): ";
 		cin >> neuralNetwork.trainingCoefficient;
+
+		if (neuralNetwork.trainingCoefficient <= 0 || neuralNetwork.trainingCoefficient > 1) {
+			throw "Error - Invalid parameter: training coefficient";
+		}
 
 		cout << "Enter maximum allowable number of training steps (N >= 1, N = 1000000): ";
 		cin >> neuralNetwork.maximumAllowableNumberOfTrainingSteps;
 
-		/*if (rectWidth <= 0 || rectWidth > imageWidth) {
-			throw "Error - Invalid parameter: rectangle width";
-		}*/
+		if (neuralNetwork.maximumAllowableNumberOfTrainingSteps <= 0) {
+			throw "Error - Invalid parameter: maximum allowable number of trainingSteps";
+		}
 	}
 	catch (const char* mesage) {
 		cerr << mesage << endl;
@@ -100,8 +121,8 @@ int main()
 
 	double* lastWindow = new double[neuralNetwork.windowSize];
 
-	for (int windowNumberIndex = 0, sequenceNumberIndex = neuralNetwork.samplesNumber; windowNumberIndex < neuralNetwork.windowSize; windowNumberIndex++, sequenceNumberIndex++) {
-		lastWindow[windowNumberIndex] = sequence[sequenceNumberIndex];
+	for (int windowNumberIndex = 0; windowNumberIndex < neuralNetwork.windowSize; windowNumberIndex++) {
+		lastWindow[windowNumberIndex] = sequence[windowNumberIndex + neuralNetwork.samplesNumber];
 	}
 
 	int predictedNumber = predictNextNumber(lastWindow, neuralNetwork);
@@ -113,19 +134,35 @@ int main()
 }
 
 
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция инициализации весовых матриц, порогов и обучающей выборки сети
+*/
 void initializeNeuralNetwork(NeuralNetwork &neuralNetwork, double* sequence, int sequenceSize) {
 	double minWeight = -0.1;
 	double maxWeight = 0.1;
 
 	srand((unsigned int)time(0));
 
-	neuralNetwork.currFirstLayerWeightMatrix = new double*[neuralNetwork.neuronsNumber];
+	neuralNetwork.currFirstLayerWeightMatrix = new double*[neuralNetwork.windowSize];
+
+	for (int currRowNumber = 0; currRowNumber < neuralNetwork.windowSize; currRowNumber++) {
+		neuralNetwork.currFirstLayerWeightMatrix[currRowNumber] = new double[neuralNetwork.neuronsNumber];
+
+		for (int currColNumber = 0; currColNumber < neuralNetwork.neuronsNumber; currColNumber++) {
+			neuralNetwork.currFirstLayerWeightMatrix[currRowNumber][currColNumber] 
+				= (((double)rand() / RAND_MAX) * (maxWeight - minWeight)) + minWeight;
+		}
+	}
+
+	neuralNetwork.currContextNeuronsWeightMatrix = new double*[neuralNetwork.neuronsNumber];
 
 	for (int currRowNumber = 0; currRowNumber < neuralNetwork.neuronsNumber; currRowNumber++) {
-		neuralNetwork.currFirstLayerWeightMatrix[currRowNumber] = new double[neuralNetwork.windowSize];
+		neuralNetwork.currContextNeuronsWeightMatrix[currRowNumber] = new double[neuralNetwork.neuronsNumber];
 
-		for (int currColNumber = 0; currColNumber < neuralNetwork.windowSize; currColNumber++) {
-			neuralNetwork.currFirstLayerWeightMatrix[currRowNumber][currColNumber] 
+		for (int currColNumber = 0; currColNumber < neuralNetwork.neuronsNumber; currColNumber++) {
+			neuralNetwork.currContextNeuronsWeightMatrix[currRowNumber][currColNumber]
 				= (((double)rand() / RAND_MAX) * (maxWeight - minWeight)) + minWeight;
 		}
 	}
@@ -135,13 +172,6 @@ void initializeNeuralNetwork(NeuralNetwork &neuralNetwork, double* sequence, int
 	for (int currRowNumber = 0; currRowNumber < neuralNetwork.neuronsNumber; currRowNumber++) {
 		neuralNetwork.currSecondLayerWeightMatrix[currRowNumber] 
 			= (((double)rand() / RAND_MAX) * (maxWeight - minWeight)) + minWeight;
-	}
-
-	neuralNetwork.currContextNeuronsWeightMatrix = new double*[neuralNetwork.neuronsNumber];
-
-	for (int currRowNumber = 0; currRowNumber < neuralNetwork.neuronsNumber; currRowNumber++) {
-		neuralNetwork.currContextNeuronsWeightMatrix[currRowNumber] = new double[neuralNetwork.neuronsNumber];
-		memset(neuralNetwork.currContextNeuronsWeightMatrix[currRowNumber], 0, neuralNetwork.neuronsNumber * sizeof(double));
 	}
 
 	neuralNetwork.currContextValues = new double[neuralNetwork.neuronsNumber];
@@ -160,8 +190,8 @@ void initializeNeuralNetwork(NeuralNetwork &neuralNetwork, double* sequence, int
 	for (int currRowNumber = 0; currRowNumber < neuralNetwork.samplesNumber; currRowNumber++) {
 		neuralNetwork.trainingSample[currRowNumber] = new double[neuralNetwork.windowSize];
 
-		for (int currColNumber = 0, sequenceNumberIndex = currRowNumber; currColNumber < neuralNetwork.windowSize; currColNumber++, sequenceNumberIndex++) {
-			neuralNetwork.trainingSample[currRowNumber][currColNumber] = sequence[sequenceNumberIndex];
+		for (int currColNumber = 0; currColNumber < neuralNetwork.windowSize; currColNumber++) {
+			neuralNetwork.trainingSample[currRowNumber][currColNumber] = sequence[currColNumber + currRowNumber];
 		}
 
 		neuralNetwork.rezultSample[currRowNumber] = sequence[currRowNumber + neuralNetwork.windowSize];
@@ -169,29 +199,26 @@ void initializeNeuralNetwork(NeuralNetwork &neuralNetwork, double* sequence, int
 }
 
 
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция обучения рекурентной нейронной сети
+*/
 void trainNeuralNetwork(NeuralNetwork &neuralNetwork) {
 	double** X = neuralNetwork.trainingSample;
-	double** W1 = neuralNetwork.currFirstLayerWeightMatrix;
-	double** WCont = neuralNetwork.currContextNeuronsWeightMatrix;
 
 	int &L = neuralNetwork.samplesNumber;
 	int &p = neuralNetwork.neuronsNumber;
-	int &windS = neuralNetwork.windowSize;
 	int maxNumOfSteps = neuralNetwork.maximumAllowableNumberOfTrainingSteps;
 	int numOfSteps = 0;
 
 	double* XRez = neuralNetwork.rezultSample;
-	double* T1 = neuralNetwork.currFirstLayerThresholds;
 	double* contVal = neuralNetwork.currContextValues;
-	double* W2 = neuralNetwork.currSecondLayerWeightMatrix;
-	double* rezult = neuralNetwork.rezultSample;
 	double* S1 = new double[p];
 	double* Y1 = new double[p];
     double* generalParts2 = new double[p];
 
-	double &T2 = neuralNetwork.currSecondLayerThreshold;
 	double &e = neuralNetwork.maximumAllowableError;
-	double &a = neuralNetwork.trainingCoefficient;
 	double S2;
 	double Y2;
     double generalPart1;
@@ -208,14 +235,14 @@ void trainNeuralNetwork(NeuralNetwork &neuralNetwork) {
             
             calculateGeneralPart1(generalPart1, currImageryIndex, Y2, S2, neuralNetwork);
 
-			modifyW2(W2, generalPart1, Y1, neuralNetwork);
-			modifyT2(T2, generalPart1);
+			modifyW2(generalPart1, Y1, neuralNetwork);
+			modifyT2(generalPart1, neuralNetwork);
             
             calculateGeneralParts2(generalParts2, generalPart1, S1, neuralNetwork);
 
-			modifyWCont(WCont, generalParts2, neuralNetwork);
-			modifyW1(W1, currImageryIndex, generalParts2, neuralNetwork);
-			modifyT1(T1, generalParts2, neuralNetwork);
+			modifyWCont(generalParts2, neuralNetwork);
+			modifyW1(generalParts2, X[currImageryIndex], neuralNetwork);
+			modifyT1(generalParts2, neuralNetwork);
 
 			memcpy(contVal, Y1, p * sizeof(double));
 		}
@@ -235,7 +262,9 @@ void trainNeuralNetwork(NeuralNetwork &neuralNetwork) {
 			memcpy(contVal, Y1, p * sizeof(double));
 		}
 
-		cout /*<< "            " << "\r"*/ << currError << "\r";
+		numOfSteps++;
+
+		cout << currError << /*"\r"*/ endl;
 	} while (currError > e && numOfSteps < maxNumOfSteps);
 
 	delete S1;
@@ -244,6 +273,11 @@ void trainNeuralNetwork(NeuralNetwork &neuralNetwork) {
 }
 
 
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция предсказания следующего элемента последовательности с помощью нейронной сети
+*/
 int predictNextNumber(double* X, NeuralNetwork &neuralNetwork) {
 	int predictedNumber;
 	int &p = neuralNetwork.neuronsNumber;
@@ -266,7 +300,12 @@ int predictNextNumber(double* X, NeuralNetwork &neuralNetwork) {
 }
 
 
-void calculateS1(double* S1, double* X, NeuralNetwork &neuralNetwork) {
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция вычисления выхода функции синаптических преобразований нейронов скрытого слоя
+*/
+void calculateS1(double* S1, double* Xi, NeuralNetwork &neuralNetwork) {
 	double** W1 = neuralNetwork.currFirstLayerWeightMatrix;
 	double** WCont = neuralNetwork.currContextNeuronsWeightMatrix;
 
@@ -276,22 +315,27 @@ void calculateS1(double* S1, double* X, NeuralNetwork &neuralNetwork) {
 	int &p = neuralNetwork.neuronsNumber;
 	int &windS = neuralNetwork.windowSize;
 
-	for (int currRowNumber = 0; currRowNumber < p; currRowNumber++) {
-		S1[currRowNumber] = 0;
+	for (int currColNumber = 0; currColNumber < p; currColNumber++) {
+		S1[currColNumber] = 0;
 
-		for (int currColNumber = 0; currColNumber < windS; currColNumber++) {
-			S1[currRowNumber] += X[currColNumber] * W1[currRowNumber][currColNumber];
+		for (int currRowNumber = 0; currRowNumber < windS; currRowNumber++) {
+			S1[currColNumber] += Xi[currRowNumber] * W1[currRowNumber][currColNumber];
 		}
 
-		for (int currColNumber = 0; currColNumber < p; currColNumber++) {
-			S1[currRowNumber] += contVal[currColNumber] * WCont[currRowNumber][currColNumber];
+		for (int currRowNumber = 0; currRowNumber < p; currRowNumber++) {
+			S1[currColNumber] += contVal[currRowNumber] * WCont[currRowNumber][currColNumber];
 		}
 
-		S1[currRowNumber] -= T1[currRowNumber];
+		S1[currColNumber] -= T1[currColNumber];
 	}
 }
 
 
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция вычисления выхода функции активации нейронов скрытого слоя
+*/
 void calculateY1(double* Y1, double* S1, NeuralNetwork &neuralNetwork) {
 	int &p = neuralNetwork.neuronsNumber;
 
@@ -301,6 +345,11 @@ void calculateY1(double* Y1, double* S1, NeuralNetwork &neuralNetwork) {
 }
 
 
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция вычисления выхода функции синаптических преобразований нейрона выходного слоя
+*/
 void calculateS2(double &S2, double* Y1, NeuralNetwork &neuralNetwork) {
 	int &p = neuralNetwork.neuronsNumber;
 	double* W2 = neuralNetwork.currSecondLayerWeightMatrix;
@@ -316,11 +365,21 @@ void calculateS2(double &S2, double* Y1, NeuralNetwork &neuralNetwork) {
 }
 
 
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция вычисления выхода функции активации нейрона выходного слоя
+*/
 void calculateY2(double &Y2, double &S2) {
 	Y2 = activateFunction(S2);
 }
 
 
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция вычисления общей части для формул изменения весовых коэффициентов и порога выходного слоя
+*/
 void calculateGeneralPart1(double &generalPart1, int currImageryIndex, double Y2, double S2, NeuralNetwork &neuralNetwork) {
 	double &a = neuralNetwork.trainingCoefficient;
 	double *XRez = neuralNetwork.rezultSample;
@@ -329,20 +388,37 @@ void calculateGeneralPart1(double &generalPart1, int currImageryIndex, double Y2
 }
 
 
-void modifyW2(double* W2, double generalPart1, double* Y1, NeuralNetwork &neuralNetwork) {
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция изменения весовых коэффициентов матрицы выходного слоя
+*/
+void modifyW2(double generalPart1, double* Y1, NeuralNetwork &neuralNetwork) {
 	int &p = neuralNetwork.neuronsNumber;
+	double* W2 = neuralNetwork.currSecondLayerWeightMatrix;
 
 	for (int currRowNumber = 0; currRowNumber < p; currRowNumber++) {
 		W2[currRowNumber] -= generalPart1 * Y1[currRowNumber];
 	} 
 }
 
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция изменения порога выходного слоя
+*/
+void modifyT2(double generalPart1, NeuralNetwork &neuralNetwork) {
+	double &T2 = neuralNetwork.currSecondLayerThreshold;
 
-void modifyT2(double &T2, double generalPart1) {
     T2 += generalPart1;
 }
 
 
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция вычисления общих частей для формул изменения весовых коэффициентов и порогов
+*/
 void calculateGeneralParts2(double* generalParts2, double generalPart1, double* S1, NeuralNetwork &neuralNetwork) {
 	int &p = neuralNetwork.neuronsNumber;
 	double* W2 = neuralNetwork.currSecondLayerWeightMatrix;
@@ -354,9 +430,15 @@ void calculateGeneralParts2(double* generalParts2, double generalPart1, double* 
 }
 
 
-void modifyWCont(double** WCont, double* generalParts2, NeuralNetwork &neuralNetwork) {
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция изменения весовых коэффициентов матрицы контекстных нейронов
+*/
+void modifyWCont(double* generalParts2, NeuralNetwork &neuralNetwork) {
 	int &p = neuralNetwork.neuronsNumber;
-	double *contVal = neuralNetwork.currContextValues;
+	double* contVal = neuralNetwork.currContextValues;
+	double** WCont = neuralNetwork.currContextNeuronsWeightMatrix;
 	
 	for (int currRowNumber = 0; currRowNumber < p; currRowNumber++) {
 		for (int currColNumber = 0; currColNumber < p; currColNumber++) {
@@ -366,22 +448,32 @@ void modifyWCont(double** WCont, double* generalParts2, NeuralNetwork &neuralNet
 }
 
 
-void modifyW1(double** W1, int currImageryIndex, double* generalParts2, NeuralNetwork &neuralNetwork) {
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция изменения весовых коэффициентов матрицы скрытого слоя
+*/
+void modifyW1(double* generalParts2, double* Xi, NeuralNetwork &neuralNetwork) {
 	int &windS = neuralNetwork.windowSize;
 	int &p = neuralNetwork.neuronsNumber;
+	double** W1 = neuralNetwork.currFirstLayerWeightMatrix;
 
-	double** X1 = neuralNetwork.trainingSample;
-
-	for (int currRowNumber = 0; currRowNumber < p; currRowNumber++) {
-		for (int currColNumber = 0; currColNumber < windS; currColNumber++) {
-			W1[currRowNumber][currColNumber] -= generalParts2[currRowNumber] * X1[currImageryIndex][currColNumber];
+	for (int currRowNumber = 0; currRowNumber < windS; currRowNumber++) {
+		for (int currColNumber = 0; currColNumber < p; currColNumber++) {
+			W1[currRowNumber][currColNumber] -= generalParts2[currColNumber] * Xi[currRowNumber];
+			//W1[currRowNumber][currColNumber] -= generalParts2[currColNumber] * Xi[windS - 1 - currRowNumber];
 		}
 	}
 }
 
-
-void modifyT1(double* T1, double* generalParts2, NeuralNetwork &neuralNetwork) {
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция изменения порогов скрытого слоя
+*/
+void modifyT1(double* generalParts2, NeuralNetwork &neuralNetwork) {
 	int &p = neuralNetwork.neuronsNumber;
+	double* T1 = neuralNetwork.currFirstLayerThresholds;
 
 	for (int currRowNumber = 0; currRowNumber < p; currRowNumber++) {
 		T1[currRowNumber] += generalParts2[currRowNumber];
@@ -389,12 +481,22 @@ void modifyT1(double* T1, double* generalParts2, NeuralNetwork &neuralNetwork) {
 }
 
 
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция активации
+*/
 double activateFunction(double x) {
 	//return sin(atan(x));
 	return 0.1 * x;
 }
 
 
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Производная функции активации
+*/
 double activateFunctionDerivative(double x) {
 	//return cos(atan(x)) / (1 + (x * x));
 	return 0.1;
