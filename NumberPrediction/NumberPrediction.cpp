@@ -17,6 +17,7 @@ int main()
 	try {
 		int sequenceCode;
 
+		cout << "Choose sequence: " << endl;
 		cout << "1 - 1, 2, 3, ...\n2 - 1, 3, 5, 7, ... (periodic)\n3 - Fibonacci series\n4 - 3^(x+2)\n5 - x!\n6 - x^2\n";
 		cin >> sequenceCode;
 
@@ -97,14 +98,24 @@ int main()
 
 	trainNeuralNetwork(neuralNetwork);
 
+	double* lastWindow = new double[neuralNetwork.windowSize];
+
+	for (int windowNumberIndex = 0, sequenceNumberIndex = neuralNetwork.samplesNumber; windowNumberIndex < neuralNetwork.windowSize; windowNumberIndex++, sequenceNumberIndex++) {
+		lastWindow[windowNumberIndex] = sequence[sequenceNumberIndex];
+	}
+
+	int predictedNumber = predictNextNumber(lastWindow, neuralNetwork);
+
+	cout << endl << predictedNumber << endl;
+
 	system("pause");
 	return 0;
 }
 
 
 void initializeNeuralNetwork(NeuralNetwork &neuralNetwork, double* sequence, int sequenceSize) {
-	double minWeight = -1.0;
-	double maxWeight = 1.0;
+	double minWeight = -0.1;
+	double maxWeight = 0.1;
 
 	srand((unsigned int)time(0));
 
@@ -141,7 +152,7 @@ void initializeNeuralNetwork(NeuralNetwork &neuralNetwork, double* sequence, int
 
 	neuralNetwork.currSecondLayerThreshold = 0;
 
-	neuralNetwork.samplesNumber = sequenceSize - neuralNetwork.windowSize + 1;
+	neuralNetwork.samplesNumber = sequenceSize - neuralNetwork.windowSize;
 
 	neuralNetwork.trainingSample = new double*[neuralNetwork.samplesNumber];
 	neuralNetwork.rezultSample = new double[neuralNetwork.samplesNumber];
@@ -163,45 +174,113 @@ void trainNeuralNetwork(NeuralNetwork &neuralNetwork) {
 	double** W1 = neuralNetwork.currFirstLayerWeightMatrix;
 	double** WCont = neuralNetwork.currContextNeuronsWeightMatrix;
 
+	int &L = neuralNetwork.samplesNumber;
+	int &p = neuralNetwork.neuronsNumber;
+	int &windS = neuralNetwork.windowSize;
+	int maxNumOfSteps = neuralNetwork.maximumAllowableNumberOfTrainingSteps;
+	int numOfSteps = 0;
+
+	double* XRez = neuralNetwork.rezultSample;
 	double* T1 = neuralNetwork.currFirstLayerThresholds;
 	double* contVal = neuralNetwork.currContextValues;
 	double* W2 = neuralNetwork.currSecondLayerWeightMatrix;
 	double* rezult = neuralNetwork.rezultSample;
-	double* S1;
-	double* Y1;
+	double* S1 = new double[p];
+	double* Y1 = new double[p];
+    double* generalParts2 = new double[p];
 
-	int L = neuralNetwork.samplesNumber;
-	int p = neuralNetwork.neuronsNumber;
-	int windS = neuralNetwork.windowSize;
-	int numOfSteps = 0;
-
-	double T2 = neuralNetwork.currSecondLayerThreshold;
-	double e = neuralNetwork.maximumAllowableError;
-	double a = neuralNetwork.trainingCoefficient;
+	double &T2 = neuralNetwork.currSecondLayerThreshold;
+	double &e = neuralNetwork.maximumAllowableError;
+	double &a = neuralNetwork.trainingCoefficient;
 	double S2;
 	double Y2;
-	double E;
+    double generalPart1;
+	double currError;
+	double delta;
 
 	do {
 		for (int currImageryIndex = 0; currImageryIndex < L; currImageryIndex++) {
-			S1 = calculateS1(X[currImageryIndex], contVal, T1, W1, WCont, p, windS);
-			Y1 = calculateY1(S1, p);
+			calculateS1(S1, X[currImageryIndex], neuralNetwork);
+			calculateY1(Y1, S1, neuralNetwork);
 
-			S2 = calculateS2(Y1, T2, W2, p);
-			Y2 = calculateY2(S2);
+			calculateS2(S2, Y1, neuralNetwork);
+			calculateY2(Y2, S2);
+            
+            calculateGeneralPart1(generalPart1, currImageryIndex, Y2, S2, neuralNetwork);
+
+			modifyW2(W2, generalPart1, Y1, neuralNetwork);
+			modifyT2(T2, generalPart1);
+            
+            calculateGeneralParts2(generalParts2, generalPart1, S1, neuralNetwork);
+
+			modifyWCont(WCont, generalParts2, neuralNetwork);
+			modifyW1(W1, currImageryIndex, generalParts2, neuralNetwork);
+			modifyT1(T1, generalParts2, neuralNetwork);
+
+			memcpy(contVal, Y1, p * sizeof(double));
 		}
-	} while (E > e);
+
+		currError = 0;
+
+		for (int currImageryIndex = 0; currImageryIndex < L; currImageryIndex++) {
+			calculateS1(S1, X[currImageryIndex], neuralNetwork);
+			calculateY1(Y1, S1, neuralNetwork);
+
+			calculateS2(S2, Y1, neuralNetwork);
+			calculateY2(Y2, S2);
+
+			delta = (Y2 - XRez[currImageryIndex]);
+			currError += (delta * delta) / 2;
+
+			memcpy(contVal, Y1, p * sizeof(double));
+		}
+
+		cout /*<< "            " << "\r"*/ << currError << "\r";
+	} while (currError > e && numOfSteps < maxNumOfSteps);
+
+	delete S1;
+	delete Y1;
+	delete generalParts2;
 }
 
 
-double* calculateS1(double* Xi, double* contVal, double* T1, double** W1, double** WCont, int p, int windS) {
+int predictNextNumber(double* X, NeuralNetwork &neuralNetwork) {
+	int predictedNumber;
+	int &p = neuralNetwork.neuronsNumber;
+
 	double* S1 = new double[p];
+	double* Y1 = new double[p];
+
+	double S2;
+	double Y2;
+
+	calculateS1(S1, X, neuralNetwork);
+	calculateY1(Y1, S1, neuralNetwork);
+
+	calculateS2(S2, Y1, neuralNetwork);
+	calculateY2(Y2, S2);
+
+	predictedNumber = (int)Y2;
 	
+	return predictedNumber;
+}
+
+
+void calculateS1(double* S1, double* X, NeuralNetwork &neuralNetwork) {
+	double** W1 = neuralNetwork.currFirstLayerWeightMatrix;
+	double** WCont = neuralNetwork.currContextNeuronsWeightMatrix;
+
+	double* contVal = neuralNetwork.currContextValues;
+	double* T1 = neuralNetwork.currFirstLayerThresholds;
+
+	int &p = neuralNetwork.neuronsNumber;
+	int &windS = neuralNetwork.windowSize;
+
 	for (int currRowNumber = 0; currRowNumber < p; currRowNumber++) {
 		S1[currRowNumber] = 0;
 
 		for (int currColNumber = 0; currColNumber < windS; currColNumber++) {
-			S1[currRowNumber] += Xi[currColNumber] * W1[currRowNumber][currColNumber];
+			S1[currRowNumber] += X[currColNumber] * W1[currRowNumber][currColNumber];
 		}
 
 		for (int currColNumber = 0; currColNumber < p; currColNumber++) {
@@ -210,43 +289,113 @@ double* calculateS1(double* Xi, double* contVal, double* T1, double** W1, double
 
 		S1[currRowNumber] -= T1[currRowNumber];
 	}
-
-	return S1;
 }
 
 
-double* calculateY1(double* S1, int p) {
-	double* Y1 = new double[p];
+void calculateY1(double* Y1, double* S1, NeuralNetwork &neuralNetwork) {
+	int &p = neuralNetwork.neuronsNumber;
 
 	for (int currRowNumber = 0; currRowNumber < p; currRowNumber++) {
 		Y1[currRowNumber] = activateFunction(S1[currRowNumber]);
 	}
-
-	return Y1;
 }
 
 
-double calculateS2(double* Y1, double T2, double* W2, int p) {
-	double S2 = 0;
+void calculateS2(double &S2, double* Y1, NeuralNetwork &neuralNetwork) {
+	int &p = neuralNetwork.neuronsNumber;
+	double* W2 = neuralNetwork.currSecondLayerWeightMatrix;
+	double &T2 = neuralNetwork.currSecondLayerThreshold;
+
+	S2 = 0;
 
 	for (int currRowNumber = 0; currRowNumber < p; currRowNumber++) {
 		S2 += Y1[currRowNumber] * W2[currRowNumber];
 	}
 
-	return S2 - T2;
+	S2 -= T2;
 }
 
 
-double calculateY2(double S2) {
-	return activateFunction(S2);
+void calculateY2(double &Y2, double &S2) {
+	Y2 = activateFunction(S2);
+}
+
+
+void calculateGeneralPart1(double &generalPart1, int currImageryIndex, double Y2, double S2, NeuralNetwork &neuralNetwork) {
+	double &a = neuralNetwork.trainingCoefficient;
+	double *XRez = neuralNetwork.rezultSample;
+
+	generalPart1 = a * (Y2 - XRez[currImageryIndex]) * activateFunctionDerivative(S2);
+}
+
+
+void modifyW2(double* W2, double generalPart1, double* Y1, NeuralNetwork &neuralNetwork) {
+	int &p = neuralNetwork.neuronsNumber;
+
+	for (int currRowNumber = 0; currRowNumber < p; currRowNumber++) {
+		W2[currRowNumber] -= generalPart1 * Y1[currRowNumber];
+	} 
+}
+
+
+void modifyT2(double &T2, double generalPart1) {
+    T2 += generalPart1;
+}
+
+
+void calculateGeneralParts2(double* generalParts2, double generalPart1, double* S1, NeuralNetwork &neuralNetwork) {
+	int &p = neuralNetwork.neuronsNumber;
+	double* W2 = neuralNetwork.currSecondLayerWeightMatrix;
+	
+	for (int currRowNumber = 0; currRowNumber < p; currRowNumber++) {
+        generalParts2[currRowNumber] = generalPart1 * W2[currRowNumber] 
+            * activateFunctionDerivative(S1[currRowNumber]);
+    }
+}
+
+
+void modifyWCont(double** WCont, double* generalParts2, NeuralNetwork &neuralNetwork) {
+	int &p = neuralNetwork.neuronsNumber;
+	double *contVal = neuralNetwork.currContextValues;
+	
+	for (int currRowNumber = 0; currRowNumber < p; currRowNumber++) {
+		for (int currColNumber = 0; currColNumber < p; currColNumber++) {
+			WCont[currRowNumber][currColNumber] -= generalParts2[currColNumber] * contVal[currRowNumber];
+		}
+	}
+}
+
+
+void modifyW1(double** W1, int currImageryIndex, double* generalParts2, NeuralNetwork &neuralNetwork) {
+	int &windS = neuralNetwork.windowSize;
+	int &p = neuralNetwork.neuronsNumber;
+
+	double** X1 = neuralNetwork.trainingSample;
+
+	for (int currRowNumber = 0; currRowNumber < p; currRowNumber++) {
+		for (int currColNumber = 0; currColNumber < windS; currColNumber++) {
+			W1[currRowNumber][currColNumber] -= generalParts2[currRowNumber] * X1[currImageryIndex][currColNumber];
+		}
+	}
+}
+
+
+void modifyT1(double* T1, double* generalParts2, NeuralNetwork &neuralNetwork) {
+	int &p = neuralNetwork.neuronsNumber;
+
+	for (int currRowNumber = 0; currRowNumber < p; currRowNumber++) {
+		T1[currRowNumber] += generalParts2[currRowNumber];
+	}
 }
 
 
 double activateFunction(double x) {
-	return sin(atan(x));
+	//return sin(atan(x));
+	return 0.1 * x;
 }
 
 
 double activateFunctionDerivative(double x) {
-	return cos(atan(x)) / (1 + (x * x));
+	//return cos(atan(x)) / (1 + (x * x));
+	return 0.1;
 }
