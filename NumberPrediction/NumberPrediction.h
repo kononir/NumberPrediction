@@ -20,18 +20,19 @@ typedef struct NeuralNetwork {
 	double trainingCoefficient;
 	double maximumAllowableError;
 	double reachedError;
+	double scale;
 } NeuralNetwork;
 
 void initializeNeuralNetwork(NeuralNetwork &neuralNetwork, double* sequence, int sequenceSize);
 void trainNeuralNetwork(NeuralNetwork &neuralNetwork);
-int predictNextNumber(double* X, NeuralNetwork &neuralNetwork);
+double predictNextNumber(double* X, NeuralNetwork &neuralNetwork);
 
 void calculateS1(double* S1, double* Xi, NeuralNetwork &neuralNetwork);
 void calculateY1(double* Y1, double* S1, NeuralNetwork &neuralNetwork);
 void calculateS2(double &S2, double* Y1, NeuralNetwork &neuralNetwork);
 void calculateY2(double &Y2, double &S2);
 
-void calculateGeneralPart1(double &generalPart1, int currImageryIndex, double Y2, double S2, NeuralNetwork &neuralNetwork);
+void calculateGeneralPart1(double &generalPart1, double XRezi, double Y2, double S2, NeuralNetwork &neuralNetwork);
 void modifyW2(double generalPart1, double* Y1, NeuralNetwork &neuralNetwork);
 void modifyT2(double generalPart1, NeuralNetwork &neuralNetwork);
 void calculateGeneralParts2(double* generalParts2, double generalPart1, double* S1, NeuralNetwork &neuralNetwork);
@@ -41,3 +42,13 @@ void modifyT1(double* generalParts2, NeuralNetwork &neuralNetwork);
 
 double activateFunction(double x);
 double activateFunctionDerivative(double x);
+
+double findMax(double* sequence, int length);
+void scaleSequence(double* sequence, int length, double scale);
+
+double mySin(double x);
+double myCos(double x);
+double myAtan(double x);
+
+double linearActivateFunction(double x);
+double linearActivateFunctionDerivative(double x);
