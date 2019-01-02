@@ -24,7 +24,7 @@ int main()
 		int sequenceCode;
 
 		cout << "Choose sequence: " << endl;
-		cout << "1 - x+1\n2 - 1, 3, 5, 7, ... (periodic)\n3 - Fibonacci series\n4 - 2^(x+2)\n5 - x!\n6 - x^2\n";
+		cout << "1 - x+1\n2 - 1, 3, 5, 7, ... (periodic)\n3 - Fibonacci series\n4 - 2^(x+2)\n5 - x^2\n6 - -1, 1, -1, 1, ... (periodic)" << endl;
 		cin >> sequenceCode;
 
 		switch (sequenceCode) {
@@ -57,15 +57,15 @@ int main()
 			break;
 		}
 		case 5: {
-			sequenceSize = 5;
-			double temp[5] = { 1, 2, 6, 24, 120 };
+			sequenceSize = 10;
+			double temp[10] = { 1, 4, 9, 16, 25, 36, 49, 64, 81, 100 };
 			sequence = temp;
 
 			break;
 		}
 		case 6: {
 			sequenceSize = 10;
-			double temp[10] = { 1, 4, 9, 16, 25, 36, 49, 64, 81, 100 };
+			double temp[10] = { -1, 1, -1, 1, -1, 1, -1, 1, -1, 1 };
 			sequence = temp;
 
 			break;
@@ -116,22 +116,7 @@ int main()
 		return 1;
 	}
 
-	double max = findMax(sequence, sequenceSize);
-	neuralNetwork.scale = 0;
-
-	if (max >= 1) {
-		if (max < 10) {
-			neuralNetwork.scale = 10;
-		}
-		else if (max < 100) {
-			neuralNetwork.scale = 100;
-		}
-		else if (max < 1000) {
-			neuralNetwork.scale = 1000;
-		}
-
-		scaleSequence(sequence, sequenceSize, neuralNetwork.scale);
-	}
+	neuralNetwork.scale = scaleSequence(sequence, sequenceSize);
 
 	initializeNeuralNetwork(neuralNetwork, sequence, sequenceSize);
 
@@ -145,14 +130,12 @@ int main()
 
 	double predictedNumber = predictNextNumber(lastWindow, neuralNetwork);
 	
-	if (max >= 1) {
-		predictedNumber = predictedNumber * neuralNetwork.scale;
-	}
+	predictedNumber = predictedNumber * neuralNetwork.scale;
 	
 	cout << endl << "Reached error: " << neuralNetwork.reachedError << endl;
 	cout << "Reached number of training steps: " << neuralNetwork.reachedNumberOfTrainingSteps << endl;
 
-	cout << predictedNumber << endl;
+	cout << "Predicted number: " << predictedNumber << endl;
 
 	system("pause");
 	return 0;
@@ -293,8 +276,7 @@ void trainNeuralNetwork(NeuralNetwork &neuralNetwork) {
 
 		numOfSteps++;
 
-		cout << currError << endl;
-		//printf("%10f\r", currError);
+		cout << currError << "\r";
 	} while (currError > e && numOfSteps < maxNumOfSteps);
 
 	neuralNetwork.reachedError = currError;
@@ -333,21 +315,52 @@ double predictNextNumber(double* X, NeuralNetwork &neuralNetwork) {
 }
 
 
-double findMax(double* sequence, int length) {
-	double max = 0;
-	for (int i = 0; i < length; i++) {
-		if (abs(sequence[i]) > max) {
-			max = abs(sequence[i]);
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция масштабирования элементов последовательности нейронной сети
+*/
+double scaleSequence(double* sequence, int sequenceSize) {
+	double max = findAbsoluteMax(sequence, sequenceSize);
+	double scale;
+
+	int curDegree = 0;
+	int exponentiationValue;
+	int maxInteger = (int)max;
+
+	while (true) {
+		exponentiationValue = pow(10, curDegree);
+
+		if (maxInteger / exponentiationValue == 0) {
+			scale = (double)exponentiationValue;
+
+			break;
 		}
+
+		curDegree++;
 	}
-	return max;
+
+	for (int curEl = 0; curEl < sequenceSize; curEl++) {
+		sequence[curEl] = (sequence[curEl] / scale);
+	}
+
+	return scale;
 }
 
 
-void scaleSequence(double* sequence, int length, double scale) {
-	for (int i = 0; i < length; i++) {
-		sequence[i] = (sequence[i] / scale);
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция нахождения наибольшего абсолютного значения элемента последовательности
+*/
+double findAbsoluteMax(double* sequence, int length) {
+	double max = 0;
+	for (int curEl = 0; curEl < length; curEl++) {
+		if (abs(sequence[curEl]) > max) {
+			max = abs(sequence[curEl]);
+		}
 	}
+	return max;
 }
 
 
@@ -512,7 +525,6 @@ void modifyW1(double* generalParts2, double* Xi, NeuralNetwork &neuralNetwork) {
 	for (int i = 0; i < p; i++) {
 		for (int j = 0; j < m; j++) {
 			W1[i][j] -= generalParts2[j] * Xi[i];
-			//W1[i][j] -= generalParts2[j] * Xi[p - 1 - i];
 		}
 	}
 }
@@ -537,9 +549,8 @@ void modifyT1(double* generalParts2, NeuralNetwork &neuralNetwork) {
 * group: 621701
 * description: Функция активации
 */
-double activateFunction(double x) {
-	return mySin(myAtan(x));
-	//return 0.1 * x;
+double activateFunction(double S) {
+	return mySin(myAtan(S));
 }
 
 
@@ -548,32 +559,36 @@ double activateFunction(double x) {
 * group: 621701
 * description: Производная функции активации
 */
-double activateFunctionDerivative(double x) {
-	return myCos(myAtan(x)) / (1 + (x * x));
-	//return 0.1;
+double activateFunctionDerivative(double S) {
+	return myCos(myAtan(S)) / (1 + (S * S));
 }
 
 
-double linearActivateFunction(double x) {
-	return 0.1 * x;
-}
-
-
-double linearActivateFunctionDerivative(double x) {
-	return 0.1;
-}
-
-
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция синуса
+*/
 double mySin(double x) {
 	return x - (x * x * x) / 6 + (x * x * x * x * x) / 120;
 }
 
 
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция косинуса
+*/
 double myCos(double x) {
 	return 1 - (x * x) / 2 + (x * x * x * x) / 24;
 }
 
 
+/*
+* author: Novitskiy Vladislav
+* group: 621701
+* description: Функция арктангенса
+*/
 double myAtan(double x) {
 	return x - (x * x * x) / 3 + (x * x * x * x * x) / 5 + (x * x * x * x * x * x * x) / 7;
 }

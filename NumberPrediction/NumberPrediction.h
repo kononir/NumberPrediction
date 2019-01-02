@@ -43,12 +43,9 @@ void modifyT1(double* generalParts2, NeuralNetwork &neuralNetwork);
 double activateFunction(double x);
 double activateFunctionDerivative(double x);
 
-double findMax(double* sequence, int length);
-void scaleSequence(double* sequence, int length, double scale);
+double findAbsoluteMax(double* sequence, int length);
+double scaleSequence(double* sequence, int sequenceSize);
 
 double mySin(double x);
 double myCos(double x);
 double myAtan(double x);
-
-double linearActivateFunction(double x);
-double linearActivateFunctionDerivative(double x);
